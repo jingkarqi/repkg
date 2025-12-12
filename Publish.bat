@@ -47,6 +47,7 @@ move /Y "%cliOutput%\RePKG.exe" "%cliOutput%\input.exe" >nul
 if errorlevel 1 goto :error
 
 echo [3.5/%totalSteps%] Clean CLI intermediates...
+if exist "%cliOutput%\THIRD-PARTY-NOTICES.txt" copy /Y "%cliOutput%\THIRD-PARTY-NOTICES.txt" "%outputDirectory%\" >nul
 del /q "%cliOutput%\input.exe" 2>nul
 del /q "%cliOutput%\*.dll" 2>nul
 del /q "%cliOutput%\*.pdb" 2>nul
@@ -61,10 +62,20 @@ if "%buildGui%"=="1" (
         echo GUI build failed. Continuing with CLI-only publish.
         set "buildGui=0"
     ) else (
-        echo [4.5/%totalSteps%] Copy GUI binaries...
-        for %%F in ("%guiOutput%\*") do (
-            if not exist "%%F\\NUL" (
-                if /I not "%%~nxF"=="RePKG.exe" copy /Y "%%F" "%outputDirectory%\" >nul
+        echo [4.5/%totalSteps%] Merge GUI assemblies...
+        move /Y "%guiOutput%\RePKG.Gui.exe" "%guiOutput%\input-gui.exe" >nul
+        if exist "%guiOutput%\RePKG.exe" (
+            "%ilrepack%" /out:"%outputDirectory%\RePKG.Gui.exe" /target:winexe /wildcards /parallel "%guiOutput%\input-gui.exe" "%guiOutput%\RePKG.exe" "%guiOutput%\*.dll"
+        ) else (
+            "%ilrepack%" /out:"%outputDirectory%\RePKG.Gui.exe" /target:winexe /wildcards /parallel "%guiOutput%\input-gui.exe" "%guiOutput%\*.dll"
+        )
+        if errorlevel 1 (
+            echo GUI merge failed. Continuing with multi-file GUI publish.
+            copy /Y "%guiOutput%\input-gui.exe" "%outputDirectory%\RePKG.Gui.exe" >nul
+            for %%F in ("%guiOutput%\*") do (
+                if not exist "%%F\\NUL" (
+                    if /I not "%%~nxF"=="RePKG.exe" if /I not "%%~nxF"=="input-gui.exe" copy /Y "%%F" "%outputDirectory%\" >nul
+                )
             )
         )
         del /q "%outputDirectory%\*.pdb" 2>nul
